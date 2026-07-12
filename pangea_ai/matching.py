@@ -1,105 +1,170 @@
-import anthropic
 import os
-import json
-from .profiles import RESEARCHERS
+from .profiles import RESEARCHERS, SLACK_NAME_TO_RESEARCHER
 
-def find_match(user_message: str) -> list:
-    message_lower = user_message.lower()
-    
-    # Find the most relevant researcher based on message content
-    best_score = 0
-    trigger_researcher = None
-    
-    for key, researcher in RESEARCHERS.items():
-        score = sum(1 for subject in researcher["subjects"] 
-                   if subject.lower() in message_lower)
-        if score > best_score:
-            best_score = score
-            trigger_researcher = key
-    
-    if not trigger_researcher or best_score == 0:
+
+def get_researcher_from_slack_user(user_id: str, client) -> str | None:
+    """Detect which researcher profile matches the Slack user."""
+    try:
+        result = client.users_info(user=user_id)
+        user = result["user"]
+        display_name = user.get("profile", {}).get("display_name", "").lower()
+        real_name = user.get("profile", {}).get("real_name", "").lower()
+
+        print(f"👤 Slack user: display='{display_name}' real='{real_name}'")
+
+        for name in [display_name, real_name]:
+            if name in SLACK_NAME_TO_RESEARCHER:
+                return SLACK_NAME_TO_RESEARCHER[name]
+
         return None
-    
-    print(f"🎯 Trigger researcher: {trigger_researcher}")
-    
-    # Find the best complement
-    trigger = RESEARCHERS[trigger_researcher]
-    best_complement_score = -1
+    except Exception as e:
+        print(f"⚠️ Could not fetch user info: {e}")
+        return None
+
+
+def find_match_for_researcher(researcher_key: str, topic: str) -> list | None:
+    """Find best match for a known researcher on a given topic."""
+    trigger = RESEARCHERS[researcher_key]
+    topic_lower = topic.lower()
+
     best_match = None
-    
+    best_score = -1
+
     for key, researcher in RESEARCHERS.items():
-        if key == trigger_researcher:
+        if key == researcher_key:
             continue
-        
+
+        topic_score = sum(1 for subject in researcher["subjects"]
+                          if subject.lower() in topic_lower)
         method_diff = len(set(researcher["methods"]) - set(trigger["methods"]))
         subject_overlap = len(set(researcher["subjects"]) & set(trigger["subjects"]))
-        score = method_diff + subject_overlap
-        
-        if score > best_complement_score:
-            best_complement_score = score
-            best_match = key
+        score = topic_score * 2 + method_diff + subject_overlap
 
-    print(f"🎯 Best match: {best_match}")
+        if score > best_score:
+            best_score = score
+            best_match = key
 
     if not best_match:
         return None
 
-    return generate_suggestion(trigger_researcher, best_match)
+    return generate_researcher_card(researcher_key, best_match, topic)
 
 
-def generate_suggestion(researcher_a_key: str, researcher_b_key: str) -> list:
+def find_match(user_message: str) -> list | None:
+    """Generic matching from message content (no user context)."""
+    message_lower = user_message.lower()
+
+    best_score = 0
+    trigger_researcher = None
+
+    for key, researcher in RESEARCHERS.items():
+        score = sum(1 for subject in researcher["subjects"]
+                    if subject.lower() in message_lower)
+        if score > best_score:
+            best_score = score
+            trigger_researcher = key
+
+    if not trigger_researcher or best_score == 0:
+        return None
+
+    trigger = RESEARCHERS[trigger_researcher]
+    best_complement_score = -1
+    best_match = None
+
+    for key, researcher in RESEARCHERS.items():
+        if key == trigger_researcher:
+            continue
+        method_diff = len(set(researcher["methods"]) - set(trigger["methods"]))
+        subject_overlap = len(set(researcher["subjects"]) & set(trigger["subjects"]))
+        score = method_diff + subject_overlap
+        if score > best_complement_score:
+            best_complement_score = score
+            best_match = key
+
+    if not best_match:
+        return None
+
+    return generate_researcher_card(trigger_researcher, best_match, user_message)
+
+
+def generate_researcher_card(researcher_a_key: str, researcher_b_key: str, topic: str) -> list:
+    """Generate Block Kit card with researcher profile + complementarity."""
     a = RESEARCHERS[researcher_a_key]
     b = RESEARCHERS[researcher_b_key]
-    
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    
-    exp_gap = abs(a['years_experience'] - b['years_experience'])
-    match_type = "mentorship" if exp_gap > 8 else "collaboration"
-    
-    prompt = f"""Two researchers need an introduction. Write 2 sentences only.
-Sentence 1: What {a['name']} ({a['ecosystem']}, {a['location']}) brings to {b['name']}.
-Sentence 2: What {b['name']} ({b['ecosystem']}, {b['location']}) brings to {a['name']}.
-Be specific and scientific. No JSON, just 2 sentences labeled "1:" and "2:"."""
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=200,
-        messages=[{"role": "user", "content": prompt}]
+    # Generate complementarity from profile data directly
+    unique_methods_a = list(set(a['methods']) - set(b['methods']))
+    unique_access_a = a['data_access'][0] if a['data_access'] else a['ecosystem']
+    a_brings = (
+        f"Brings {unique_methods_a[0] if unique_methods_a else a['methods'][0]} expertise "
+        f"and direct access to {unique_access_a}, filling a critical gap in "
+        f"{b['name'].split()[-1]}'s {b['subjects'][0]} research."
     )
-    
-    print(f"📦 Response length: {len(response.content)}")
-    
-    if not response.content:
-        print("⚠️ Empty response from Claude")
-        return None
-    
-    raw = response.content[0].text.strip()
-    print(f"🤖 Claude response: {raw}")
-    
-    # Parse the two sentences
-    lines = [l.strip() for l in raw.split('\n') if l.strip()]
-    a_brings = lines[0].replace("1:", "").strip() if len(lines) > 0 else "Brings unique field expertise."
-    b_brings = lines[1].replace("2:", "").strip() if len(lines) > 1 else "Brings complementary methodology."
-    
-    emoji = "🤝" if match_type == "collaboration" else "🎓"
-    label = "Collaboration" if match_type == "collaboration" else "Mentorship"
+
+    unique_methods_b = list(set(b['methods']) - set(a['methods']))
+    unique_access_b = b['data_access'][0] if b['data_access'] else b['ecosystem']
+    b_brings = (
+        f"Brings {unique_methods_b[0] if unique_methods_b else b['methods'][0]} expertise "
+        f"and access to {unique_access_b}, providing {a['name'].split()[-1]} with "
+        f"capabilities unavailable in {a['location']}."
+    )
+
+    print(f"✅ A brings: {a_brings}")
+    print(f"✅ B brings: {b_brings}")
+
     a_last = a['name'].split()[-1]
     b_last = b['name'].split()[-1]
-    
+
+    # Format recent work
+    recent_work_text = "\n".join(
+        [f"• _{paper}_" for paper in b.get("recent_work", [])[:2]]
+    )
+
     return [
         {
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": f"🌍 Pangea AI — {label} Match Found {emoji}"
+                "text": "🌍 Pangea AI — Collaboration Match Found 🤝"
             }
         },
         {
             "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Based on your topic:* `{topic}`\nPangea AI identified a high-value collaborator for you:"
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
             "fields": [
-                {"type": "mrkdwn", "text": f"*{a['name']}*\n{a['location']}\n_{a['ecosystem']}_"},
-                {"type": "mrkdwn", "text": f"*{b['name']}*\n{b['location']}\n_{b['ecosystem']}_"}
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"*👤 {b['name']}*\n"
+                        f"📍 {b['location']}\n"
+                        f"🔬 {b['ecosystem']}\n"
+                        f"⏱️ {b['years_experience']} years experience"
+                    )
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"*Research areas:*\n{', '.join(b['subjects'][:3])}\n\n"
+                        f"*Methods:*\n{', '.join(b['methods'][:2])}"
+                    )
+                }
             ]
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*📄 Recent work:*\n{recent_work_text}"
+            }
         },
         {
             "type": "divider"
@@ -108,14 +173,11 @@ Be specific and scientific. No JSON, just 2 sentences labeled "1:" and "2:"."""
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"*➡️ What {a_last} brings to {b_last}:*\n{a_brings}"
-            }
-        },
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"*⬅️ What {b_last} brings to {a_last}:*\n{b_brings}"
+                "text": (
+                    f"*🤝 Why this match?*\n"
+                    f"➡️ *What you bring to {b_last}:* {a_brings}\n"
+                    f"⬅️ *What {b_last} brings to you:* {b_brings}"
+                )
             }
         },
         {

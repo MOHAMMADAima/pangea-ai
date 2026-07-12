@@ -4,6 +4,8 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from pangea_ai.matching import find_match
 from pangea_ai.profiles import RESEARCHERS
+from pangea_ai.matching import find_match, find_match_for_researcher, get_researcher_from_slack_user
+
 
 load_dotenv()
 
@@ -24,33 +26,24 @@ def handle_message(message, say):
         say(blocks=result, text="Pangea AI found a research match!")
 
 @app.command("/pangea")
-def handle_pangea_command(ack, command, say):
+def handle_pangea_command(ack, command, say, client):
     ack()
     text = command.get("text", "").strip()
-    print(f"🔬 Slash command: {text}")
+    user_id = command["user_id"]
+    print(f"🔬 Slash command: {text} from user: {user_id}")
     
     if not text:
         say(
             blocks=[
                 {
                     "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "🌍 Welcome to Pangea AI"
-                    }
+                    "text": {"type": "plain_text", "text": "🌍 Welcome to Pangea AI"}
                 },
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": "*Pangea AI bridges global vaccine research by connecting scientists with complementary expertise and unique field access.*\n\nTry a research topic to find your ideal collaborator:"
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": "• `/pangea oropouche virus transmission`\n• `/pangea Lassa fever hemorrhagic`\n• `/pangea chikungunya modeling`\n• `/pangea seroprevalence field data`"
+                        "text": "*Pangea AI bridges global vaccine research by connecting scientists with complementary expertise.*\n\nTry a research topic:\n• `/pangea oropouche virus transmission`\n• `/pangea Lassa fever hemorrhagic`\n• `/pangea malaria Plasmodium resistance`\n• `/pangea tuberculosis drug resistant`"
                     }
                 }
             ],
@@ -58,8 +51,16 @@ def handle_pangea_command(ack, command, say):
         )
         return
     
-    say("🔍 _Pangea AI is analyzing your research topic..._")
-    result = find_match(text)
+    say("🔍 _Pangea AI is identifying your ideal collaborator..._")
+    
+    # Try to detect who is typing
+    researcher_key = get_researcher_from_slack_user(user_id, client)
+    print(f"👤 Detected researcher: {researcher_key}")
+    
+    if researcher_key:
+        result = find_match_for_researcher(researcher_key, text)
+    else:
+        result = find_match(text)
     
     if result:
         say(blocks=result, text="Pangea AI found a research match!")
@@ -70,7 +71,7 @@ def handle_pangea_command(ack, command, say):
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": "🌍 *Pangea AI* — No match found for this topic.\nTry: `oropouche`, `Lassa fever`, `chikungunya`, `hemorrhagic fever`, `seroprevalence`"
+                        "text": "🌍 *Pangea AI* — No match found for this topic.\nTry: `oropouche`, `Lassa fever`, `chikungunya`, `malaria`, `tuberculosis`, `seroprevalence`"
                     }
                 }
             ],
