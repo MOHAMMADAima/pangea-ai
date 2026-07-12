@@ -4,8 +4,7 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from pangea_ai.matching import find_match
 from pangea_ai.profiles import RESEARCHERS
-from pangea_ai.matching import find_match, find_match_for_researcher, get_researcher_from_slack_user
-
+from pangea_ai.matching import find_match, find_match_for_researcher, get_researcher_from_slack_user, update_impact_stats
 
 load_dotenv()
 
@@ -201,3 +200,50 @@ if __name__ == "__main__":
     )
     print("⚡️ Pangea AI is running!")
     handler.start()
+
+
+@app.event("member_joined_channel")
+def handle_bot_joined(event, say, client):
+    # Only react when Pangea AI itself joins
+    bot_id = client.auth_test()["user_id"]
+    if event.get("user") != bot_id:
+        return
+    
+    say(
+        blocks=[
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "🌍 Pangea AI has joined the channel"
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Hello, researchers!* 👋\n\nI'm *Pangea AI* — your scientific collaboration agent.\n\nI connect researchers across disciplines and geographies, surfacing complementary expertise that wouldn't be visible otherwise.\n\n*Why it matters:* A vaccine is only as effective as the populations it was designed for. I help ensure research teams include the field access they need — wherever in the world it exists."
+                }
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*🔬 How to use me:*\n• `/pangea oropouche virus` — find your ideal collaborator on a topic\n• `/pangea Lassa fever` — get a researcher profile + introduction draft\n• Type any research topic in this channel — I'll detect collaboration opportunities"
+                }
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "🧬 _Pangea AI — Bridging global vaccine research through geographic intelligence · Built for Slack Agent Builder Challenge 2026_"
+                    }
+                ]
+            }
+        ],
+        text="Pangea AI is ready to find your ideal research collaborator!"
+    )

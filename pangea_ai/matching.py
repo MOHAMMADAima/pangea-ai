@@ -1,6 +1,30 @@
 import os
 from .profiles import RESEARCHERS, SLACK_NAME_TO_RESEARCHER
 
+# In-memory impact counter
+_impact_stats = {
+    "matches_made": 0,
+    "countries_connected": set(),
+    "disciplines_bridged": set()
+}
+
+def get_impact_stats() -> dict:
+    return {
+        "matches_made": _impact_stats["matches_made"],
+        "countries_connected": len(_impact_stats["countries_connected"]),
+        "disciplines_bridged": len(_impact_stats["disciplines_bridged"])
+    }
+
+def update_impact_stats(researcher_a_key: str, researcher_b_key: str):
+    a = RESEARCHERS[researcher_a_key]
+    b = RESEARCHERS[researcher_b_key]
+    _impact_stats["matches_made"] += 1
+    _impact_stats["countries_connected"].add(a["location"].split(",")[-1].strip())
+    _impact_stats["countries_connected"].add(b["location"].split(",")[-1].strip())
+    _impact_stats["disciplines_bridged"].add(a["subjects"][0])
+    _impact_stats["disciplines_bridged"].add(b["subjects"][0])
+
+
 
 def get_researcher_from_slack_user(user_id: str, client) -> str | None:
     """Detect which researcher profile matches the Slack user."""
@@ -120,6 +144,9 @@ def generate_researcher_card(researcher_a_key: str, researcher_b_key: str, topic
         [f"• _{paper}_" for paper in b.get("recent_work", [])[:2]]
     )
 
+    update_impact_stats(researcher_a_key, researcher_b_key)
+    stats = get_impact_stats()
+
     return [
         {
             "type": "header",
@@ -200,7 +227,12 @@ def generate_researcher_card(researcher_a_key: str, researcher_b_key: str, topic
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": "🧬 _Pangea AI — Bridging global vaccine research through geographic intelligence_"
+                    "text": (
+                        f"🧬 _Pangea AI — "
+                        f"{stats['matches_made']} matches made · "
+                        f"{stats['countries_connected']} countries connected · "
+                        f"{stats['disciplines_bridged']} research disciplines bridged_"
+                    )
                 }
             ]
         }
