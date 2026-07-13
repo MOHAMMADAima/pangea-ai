@@ -151,6 +151,8 @@ def generate_researcher_card(researcher_a_key: str, researcher_b_key: str, topic
     update_impact_stats(researcher_a_key, researcher_b_key)
     stats = get_impact_stats()
 
+    from pangea_ai.graph import get_collaborations_for_researcher, get_shared_connections
+
     return [
         {
             "type": "header",
@@ -211,6 +213,25 @@ def generate_researcher_card(researcher_a_key: str, researcher_b_key: str, topic
                 )
             }
         },
+
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*🔗 Network Intelligence*\n" + (
+                    f"You share *{len(get_shared_connections(researcher_a_key, researcher_b_key))} common collaborator(s)*: "
+                    f"{', '.join(get_shared_connections(researcher_a_key, researcher_b_key))}" 
+                    if get_shared_connections(researcher_a_key, researcher_b_key)
+                    else f"*New connection* — no prior overlap in your collaboration networks"
+                )
+            }
+        },
+
+
+
         {
             "type": "actions",
             "elements": [

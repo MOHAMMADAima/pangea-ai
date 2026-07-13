@@ -4,6 +4,7 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from pangea_ai.matching import find_match, find_match_for_researcher, get_researcher_from_slack_user
 from pangea_ai.profiles import RESEARCHERS, SLACK_NAME_TO_RESEARCHER
+from pangea_ai.graph import generate_network_graph, get_collaborations_for_researcher, get_shared_connections, PAST_COLLABORATIONS
 
 load_dotenv()
 
@@ -25,7 +26,7 @@ def handle_bot_joined(event, say, client):
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": "🌍 Pangea AI has joined the channel"
+                    "text": "Pangea AI has joined the channel"
                 }
             },
             {
@@ -42,7 +43,7 @@ def handle_bot_joined(event, say, client):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": "*🔬 How to use me:*\n• `/pangea oropouche virus` — find your ideal collaborator on a topic\n• `/pangea Lassa fever` — get a researcher profile + introduction draft\n• Type any research topic in this channel — I'll detect collaboration opportunities"
+                    "text": "*How to use me:*\n• `/pangea oropouche virus` — find your ideal collaborator on a topic\n• `/pangea Lassa fever` — get a researcher profile + introduction draft\n• Type any research topic in this channel — I'll detect collaboration opportunities"
                 }
             },
             {
@@ -50,13 +51,165 @@ def handle_bot_joined(event, say, client):
                 "elements": [
                     {
                         "type": "mrkdwn",
-                        "text": "🧬 _Pangea AI — Bridging global vaccine research through geographic intelligence · Built for Slack Agent Builder Challenge 2026_"
+                        "text": "_Pangea AI — Bridging global vaccine research through geographic intelligence · Built for Slack Agent Builder Challenge 2026_"
                     }
                 ]
             }
         ],
         text="Pangea AI is ready to find your ideal research collaborator!"
     )
+
+
+@app.event("app_home_opened")
+def handle_app_home(client, event):
+    user_id = event["user"]
+
+    try:
+        result = client.users_info(user=user_id)
+        user = result["user"]
+        display_name = user.get("profile", {}).get("display_name", "").lower()
+        real_name = user.get("profile", {}).get("real_name", "").lower()
+
+        researcher_key = None
+        for name in [display_name, real_name]:
+            if name in SLACK_NAME_TO_RESEARCHER:
+                researcher_key = SLACK_NAME_TO_RESEARCHER[name]
+                break
+    except Exception:
+        researcher_key = None
+
+    if researcher_key:
+        me = RESEARCHERS[researcher_key]
+        profile_section = {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Your Profile*\n{me['name']}\n{me['location']}\n{me['ecosystem']}"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Your expertise*\n{', '.join(me['subjects'][:3])}\n\n*Experience*\n{me['years_experience']} years"
+                }
+            ]
+        }
+        welcome_text = f"Welcome back, *{me['name'].split()[-1]}* 👋"
+    else:
+        profile_section = {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "👋 *Welcome to Pangea AI!*\nUse `/pangea [topic]` to find your ideal research collaborator."
+            }
+        }
+        welcome_text = "Welcome to Pangea AI 👋"
+
+    network_blocks = []
+    for key, researcher in RESEARCHERS.items():
+        if key == researcher_key:
+            continue
+        collabs = get_collaborations_for_researcher(key)
+        collab_text = f"_{len(collabs)} past collaboration(s)_" if collabs else "_No collaborations yet_"
+        network_blocks.append({
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*{researcher['name']}*\n{researcher['location']}\n{', '.join(researcher['subjects'][:2])}"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"_{researcher['ecosystem']}_\n{researcher['years_experience']} years\n{collab_text}"
+                }
+            ]
+        })
+        network_blocks.append({"type": "divider"})
+
+    from pangea_ai.matching import get_impact_stats
+    stats = get_impact_stats()
+
+    client.views_publish(
+        user_id=user_id,
+        view={
+            "type": "home",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Pangea AI — Global Research Network"
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"{welcome_text}\n_Bridging global vaccine research through geographic intelligence_"
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+                profile_section,
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Find My Collaborator"
+                            },
+                            "style": "primary",
+                            "action_id": "open_search",
+                            "value": "search"
+                        }
+                    ]
+                },
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": (
+                            f"*Pangea AI Impact*\n"
+                            f"*{stats['matches_made']}* matches made · "
+                            f"*{stats['countries_connected']}* countries connected · "
+                            f"*{stats['disciplines_bridged']}* disciplines bridged"
+                        )
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Research Network"
+                    }
+                },
+                *network_blocks,
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": "_Pangea AI — Built for Slack Agent Builder Challenge 2026 · Track: Agent for Good_"
+                        }
+                    ]
+                }
+            ]
+        }
+    )
+
+
+@app.action("open_search")
+def handle_open_search(ack, body, say):
+    ack()
+    say("Type `/pangea [your research topic]` to find your ideal collaborator!\n\nExamples:\n• `/pangea Lassa fever`\n• `/pangea influenza pandemic`\n• `/pangea tuberculosis drug resistant`")
 
 
 @app.message()
@@ -68,11 +221,10 @@ def handle_message(message, say, client):
         return
 
     print(f"📨 Message received: {text}")
-    
-    # Detect researcher profile
+
     researcher_key = get_researcher_from_slack_user(user_id, client)
     print(f"👤 Detected researcher: {researcher_key}")
-    
+
     if researcher_key:
         result = find_match_for_researcher(researcher_key, text)
     else:
@@ -96,7 +248,7 @@ def handle_pangea_command(ack, command, say, client):
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": "🌍 Welcome to Pangea AI"
+                        "text": "Welcome to Pangea AI"
                     }
                 },
                 {
@@ -111,7 +263,7 @@ def handle_pangea_command(ack, command, say, client):
         )
         return
 
-    say("🔍 _Pangea AI is identifying your ideal collaborator..._")
+    say("_Pangea AI is identifying your ideal collaborator..._")
 
     researcher_key = get_researcher_from_slack_user(user_id, client)
     print(f"👤 Detected researcher: {researcher_key}")
@@ -119,10 +271,76 @@ def handle_pangea_command(ack, command, say, client):
     if researcher_key:
         result = find_match_for_researcher(researcher_key, text)
     else:
-        result = find_match(text, exclude_key=None)
+        result = find_match(text)
 
     if result:
         say(blocks=result, text="Pangea AI found a research match!")
+
+        if researcher_key:
+            try:
+                matched_key = None
+                for key, r in RESEARCHERS.items():
+                    if key != researcher_key and any(
+                        r['name'].split()[-1] in str(block)
+                        for block in result
+                    ):
+                        matched_key = key
+                        break
+
+                if matched_key:
+                    my_collabs = get_collaborations_for_researcher(researcher_key)
+                    their_collabs = get_collaborations_for_researcher(matched_key)
+                    shared = get_shared_connections(researcher_key, matched_key)
+
+                    my_collab_names = [c['partner'] for c in my_collabs]
+                    their_collab_names = [c['partner'] for c in their_collabs]
+
+                    if shared:
+                        shared_text = (
+                            f"*Shared connections:* You both know *{', '.join(shared)}* — "
+                            f"a warm introduction through your mutual colleague is possible."
+                        )
+                    else:
+                        shared_text = "_No shared connections yet — this would be a brand new bridge in the network._"
+
+                    network_blocks = [
+                        {
+                            "type": "section",
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": (
+                                    f"*Collaboration Network Analysis*\n\n"
+                                    f"*Your past collaborations:* "
+                                    f"{', '.join(my_collab_names) if my_collab_names else 'None yet'}\n\n"
+                                    f"*{RESEARCHERS[matched_key]['name'].split()[-1]}'s past collaborations:* "
+                                    f"{', '.join(their_collab_names) if their_collab_names else 'None recorded'}\n\n"
+                                    f"{shared_text}"
+                                )
+                            }
+                        }
+                    ]
+
+                    say(blocks=network_blocks, text="Network analysis complete.")
+
+                    print(f"🗺️ Generating graph for {researcher_key} → {matched_key}")
+                    graph_bytes = generate_network_graph(
+                        highlight_a=researcher_key,
+                        highlight_b=matched_key
+                    )
+                    print(f"🗺️ Graph generated: {len(graph_bytes)} bytes")
+
+                    client.files_upload_v2(
+                        channel=command["channel_id"],
+                        content=graph_bytes,
+                        filename="pangea_network.png",
+                        title=f"Pangea AI Network — Your collaboration history and suggested new connection with {RESEARCHERS[matched_key]['name']}"
+                    )
+                    print(f"🗺️ Graph uploaded successfully")
+
+            except Exception as e:
+                print(f"⚠️ Graph error: {e}")
+                import traceback
+                traceback.print_exc()
     else:
         say(
             blocks=[
@@ -130,7 +348,7 @@ def handle_pangea_command(ack, command, say, client):
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": "🌍 *Pangea AI* — No match found for this topic.\nTry: `oropouche`, `Lassa fever`, `chikungunya`, `malaria`, `tuberculosis`, `mRNA vaccine`, `influenza`, `seroprevalence`"
+                        "text": "*Pangea AI* — No match found for this topic.\nTry: `oropouche`, `Lassa fever`, `chikungunya`, `malaria`, `tuberculosis`, `mRNA vaccine`, `influenza`, `seroprevalence`"
                     }
                 }
             ],
@@ -148,7 +366,7 @@ def handle_draft_message(ack, body, say, client):
     a = RESEARCHERS[researcher_a_key]
     b = RESEARCHERS[researcher_b_key]
 
-    say("✍️ _Pangea AI is drafting your personalized introduction message..._")
+    say("_Pangea AI is drafting your personalized introduction message..._")
 
     from anthropic import Anthropic
     ai_client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -199,7 +417,6 @@ Use [A] and [B] as placeholders. Output the text only."""
     draft = draft.replace("[A]", a['name'])
     draft = draft.replace("[B]", b['name'])
 
-    # Store draft in memory
     draft_id = f"{researcher_a_key}_{researcher_b_key}"
     _draft_storage[draft_id] = draft
 
@@ -209,7 +426,7 @@ Use [A] and [B] as placeholders. Output the text only."""
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": "✉️ Personalized Introduction Message"
+                    "text": "Personalized Introduction Message"
                 }
             },
             {
@@ -236,7 +453,7 @@ Use [A] and [B] as placeholders. Output the text only."""
                         "type": "button",
                         "text": {
                             "type": "plain_text",
-                            "text": "💬 Send to Researcher's Slack DM"
+                            "text": "Send to Researcher's Slack DM"
                         },
                         "style": "primary",
                         "action_id": "send_dm_to_researcher",
@@ -246,7 +463,7 @@ Use [A] and [B] as placeholders. Output the text only."""
                         "type": "button",
                         "text": {
                             "type": "plain_text",
-                            "text": "📋 Copy Message"
+                            "text": "Copy Message"
                         },
                         "action_id": "copy_message",
                         "value": "copied"
@@ -258,7 +475,7 @@ Use [A] and [B] as placeholders. Output the text only."""
                 "elements": [
                     {
                         "type": "mrkdwn",
-                        "text": "💡 _Pangea AI — From discovery to connection in one click_"
+                        "text": "_Pangea AI — From discovery to connection in one click_"
                     }
                 ]
             }
@@ -273,7 +490,6 @@ def handle_send_dm(ack, body, say, client):
 
     value = body["actions"][0]["value"]
     researcher_a_key, researcher_b_key = value.split("|")
-    sender_id = body["user"]["id"]
 
     researcher = RESEARCHERS.get(researcher_b_key)
     draft_id = f"{researcher_a_key}_{researcher_b_key}"
@@ -300,14 +516,14 @@ def handle_send_dm(ack, body, say, client):
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": f"✉️ Introduction message from {RESEARCHERS[researcher_a_key]['name']}"
+                        "text": f"Introduction message from {RESEARCHERS[researcher_a_key]['name']}"
                     }
                 },
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"📍 *{RESEARCHERS[researcher_a_key]['name']}* — {RESEARCHERS[researcher_a_key]['location']}\n🔬 {RESEARCHERS[researcher_a_key]['ecosystem']}"
+                        "text": f"*{RESEARCHERS[researcher_a_key]['name']}* — {RESEARCHERS[researcher_a_key]['location']}\n_{RESEARCHERS[researcher_a_key]['ecosystem']}_"
                     }
                 },
                 {
@@ -325,7 +541,7 @@ def handle_send_dm(ack, body, say, client):
                     "elements": [
                         {
                             "type": "mrkdwn",
-                            "text": "💡 _Pangea AI matched you with this researcher — reply to start the collaboration!_"
+                            "text": "_Pangea AI matched you with this researcher — reply to start the collaboration!_"
                         }
                     ]
                 }
@@ -339,7 +555,7 @@ def handle_send_dm(ack, body, say, client):
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"✅ *Done!* Your introduction message has been sent directly to *{researcher['name']}* via Slack DM. They'll receive it in their Messages tab 🚀"
+                        "text": f"✅ *Done!* Your introduction message has been sent directly to *{researcher['name']}* via Slack DM 🚀"
                     }
                 }
             ],
@@ -354,163 +570,6 @@ def handle_send_dm(ack, body, say, client):
 @app.action("copy_message")
 def handle_copy(ack, body):
     ack()
-
-
-
-@app.event("app_home_opened")
-def handle_app_home(client, event):
-    user_id = event["user"]
-    
-    # Detect researcher profile
-    try:
-        result = client.users_info(user=user_id)
-        user = result["user"]
-        display_name = user.get("profile", {}).get("display_name", "").lower()
-        real_name = user.get("profile", {}).get("real_name", "").lower()
-        
-        researcher_key = None
-        for name in [display_name, real_name]:
-            if name in SLACK_NAME_TO_RESEARCHER:
-                researcher_key = SLACK_NAME_TO_RESEARCHER[name]
-                break
-    except Exception:
-        researcher_key = None
-
-    from pangea_ai.profiles import SLACK_NAME_TO_RESEARCHER
-    
-    # Build researcher profile section
-    if researcher_key:
-        me = RESEARCHERS[researcher_key]
-        profile_section = {
-            "type": "section",
-            "fields": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"*👤 Your Profile*\n{me['name']}\n📍 {me['location']}\n🔬 {me['ecosystem']}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*🧪 Your expertise*\n{', '.join(me['subjects'][:3])}\n\n*⏱️ Experience*\n{me['years_experience']} years"
-                }
-            ]
-        }
-        welcome_text = f"Welcome back, *{me['name'].split()[1]}* 👋"
-    else:
-        profile_section = {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": "👋 *Welcome to Pangea AI!*\nUse `/pangea [topic]` to find your ideal research collaborator."
-            }
-        }
-        welcome_text = "Welcome to Pangea AI 👋"
-
-    # Build network section — all researchers
-    network_blocks = []
-    for key, researcher in RESEARCHERS.items():
-        if key == researcher_key:
-            continue
-        network_blocks.append({
-            "type": "section",
-            "fields": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"*{researcher['name']}*\n📍 {researcher['location']}\n🔬 {', '.join(researcher['subjects'][:2])}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"_{researcher['ecosystem']}_\n⏱️ {researcher['years_experience']} years"
-                }
-            ]
-        })
-        network_blocks.append({"type": "divider"})
-
-    # Get impact stats
-    from pangea_ai.matching import get_impact_stats
-    stats = get_impact_stats()
-
-    client.views_publish(
-        user_id=user_id,
-        view={
-            "type": "home",
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "🌍 Pangea AI — Global Research Network"
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"{welcome_text}\n_Bridging global vaccine research through geographic intelligence_"
-                    }
-                },
-                {
-                    "type": "divider"
-                },
-                profile_section,
-                {
-                    "type": "actions",
-                    "elements": [
-                        {
-                            "type": "button",
-                            "text": {
-                                "type": "plain_text",
-                                "text": "🔬 Find My Collaborator"
-                            },
-                            "style": "primary",
-                            "action_id": "open_search",
-                            "value": "search"
-                        }
-                    ]
-                },
-                {
-                    "type": "divider"
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": (
-                            f"*📊 Pangea AI Impact*\n"
-                            f"🤝 *{stats['matches_made']}* matches made · "
-                            f"🌍 *{stats['countries_connected']}* countries connected · "
-                            f"🧬 *{stats['disciplines_bridged']}* disciplines bridged"
-                        )
-                    }
-                },
-                {
-                    "type": "divider"
-                },
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "🔬 Research Network"
-                    }
-                },
-                *network_blocks,
-                {
-                    "type": "context",
-                    "elements": [
-                        {
-                            "type": "mrkdwn",
-                            "text": "🧬 _Pangea AI — Built for Slack Agent Builder Challenge 2026 · Track: Agent for Good_"
-                        }
-                    ]
-                }
-            ]
-        }
-    )
-
-
-@app.action("open_search")
-def handle_open_search(ack, body, say):
-    ack()
-    say("🔍 Type `/pangea [your research topic]` to find your ideal collaborator!\n\nExamples:\n• `/pangea Lassa fever`\n• `/pangea influenza pandemic`\n• `/pangea tuberculosis drug resistant`")
 
 
 if __name__ == "__main__":
