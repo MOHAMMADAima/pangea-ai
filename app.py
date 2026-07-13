@@ -60,14 +60,23 @@ def handle_bot_joined(event, say, client):
 
 
 @app.message()
-def handle_message(message, say):
+def handle_message(message, say, client):
     text = message.get("text", "")
+    user_id = message.get("user", "")
 
     if text.startswith("/"):
         return
 
     print(f"📨 Message received: {text}")
-    result = find_match(text)
+    
+    # Detect researcher profile
+    researcher_key = get_researcher_from_slack_user(user_id, client)
+    print(f"👤 Detected researcher: {researcher_key}")
+    
+    if researcher_key:
+        result = find_match_for_researcher(researcher_key, text)
+    else:
+        result = find_match(text)
 
     if result:
         say(blocks=result, text="Pangea AI found a research match!")
