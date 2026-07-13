@@ -74,7 +74,7 @@ def find_match_for_researcher(researcher_key: str, topic: str) -> list | None:
     return generate_researcher_card(researcher_key, best_match, topic)
 
 
-def find_match(user_message: str) -> list | None:
+def find_match(user_message: str, exclude_key: str = None) -> list | None:
     """Generic matching from message content (no user context)."""
     message_lower = user_message.lower()
 
@@ -82,6 +82,8 @@ def find_match(user_message: str) -> list | None:
     trigger_researcher = None
 
     for key, researcher in RESEARCHERS.items():
+        if key == exclude_key:
+            continue
         score = sum(1 for subject in researcher["subjects"]
                     if subject.lower() in message_lower)
         if score > best_score:
@@ -97,6 +99,8 @@ def find_match(user_message: str) -> list | None:
 
     for key, researcher in RESEARCHERS.items():
         if key == trigger_researcher:
+            continue
+        if key == exclude_key:
             continue
         method_diff = len(set(researcher["methods"]) - set(trigger["methods"]))
         subject_overlap = len(set(researcher["subjects"]) & set(trigger["subjects"]))
