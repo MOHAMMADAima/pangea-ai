@@ -148,7 +148,6 @@ Every match made. Every country connected. Every discipline bridged. Pangea AI t
 
 **Slack Agent Builder Challenge 2026** · Track: Slack Agent for Good
 
-*Built solo in 48 hours.*
 
 ---
 
