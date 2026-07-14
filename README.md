@@ -1,57 +1,95 @@
-# 🌍 Pangea AI — Slack Agent for Good
+# Pangea AI — Slack Agent for Good
 
-> **Bridging global vaccine research by connecting scientists with complementary expertise and unique geographic field access.**
-
-Built for the **[Slack Agent Builder Challenge 2026](https://slackhack.devpost.com/)** · Track: **Slack Agent for Good**
-
----
-
-## The Problem
-
-A vaccine is only as effective as the populations it was designed for. Yet today, most vaccine research happens in centralized labs — disconnected from the field researchers who have irreplaceable access to local ecosystems, endemic populations, and real-world epidemiological data.
-
-**The result:** vaccines developed without the geographic and biological diversity they need to work globally.
-
-## The Solution
-
-Pangea AI is a Slack agent that detects emerging research topics in scientific community conversations and surfaces high-value researcher connections — explaining precisely what each scientist brings to the other, and drafting the introduction message to make it happen.
+> *"Science knows no country, because knowledge belongs to humanity, and is the torch which illuminates the world."*
+> — Louis Pasteur, 1876
 
 ---
 
-## ✨ Features
+## The problem
 
-### 🔬 Intelligent Bidirectional Matching
-Unlike existing tools that show a similarity score, Pangea AI explains **what A brings to B** and **what B brings to A** — separately. Complementarity, not redundancy.
+During COVID-19, a virologist in Tokyo had the genomic data. A field epidemiologist in Senegal had the population access. A vaccinologist in Paris had the platform.
 
-### 🗺️ Geographic Intelligence
-Each researcher profile includes their location, ecosystem access, and local populations — because a researcher based in the Amazonian rainforest has access to data that cannot be replicated in a Paris lab.
+**They never connected.**
 
-### 🎓 Mentorship Detection
-When the experience gap between two researchers exceeds 8 years on similar subjects, Pangea AI automatically reframes the match as a mentorship opportunity rather than a peer collaboration.
+The cost of that silence: 7 million lives.
 
-### ✉️ AI-Drafted Introduction Messages
-One click generates a personalized, culturally adapted introduction email — with scientific keywords, a reference to the recipient's work, and a concrete next step.
+This wasn't a failure of science. It was a failure of infrastructure.
+
+Today, 76% of vaccine clinical trial participants are White — while the communities bearing the highest disease burden in West Africa, South Asia, and Southeast Asia remain absent from the research designed to protect them. A vaccine tested on part of humanity protects part of humanity.
+
+The data that would make vaccines truly universal exists. It lives in the field — in Amazonian ecosystems, in Sahelian surveillance networks, in South Asian cohort registries. It just never reaches the lab.
+
+Pangea AI was built to change that — inside Slack, where scientific collaboration already happens.
 
 ---
 
-## 🛠️ Tech Stack
+## What Pangea AI does
+
+Pangea AI is a Slack agent that connects vaccine researchers with complementary expertise and unique geographic field access — automatically, where they already work.
+
+### `/pangea [topic]` — find your ideal collaborator
+Type a research topic. Pangea AI detects your identity from your Slack profile, finds the researcher whose expertise complements yours, and explains precisely:
+- **What YOU bring to THEM** — your methods, data access, geographic terrain
+- **What THEY bring to YOU** — capabilities you cannot replicate from your location
+
+Not a similarity score. A scientific justification. Bidirectional.
+
+### Collaboration network graph
+Pangea AI visualizes the existing network of past collaborations in real time — who has worked with whom, on what topic, and when. If you share a mutual colleague with your suggested match, Pangea AI tells you immediately and quantifies the network distance.
+
+### AI-drafted introduction message
+One click generates a personalized, scientifically grounded outreach message — culturally adapted to the recipient's academic context, referencing their recent work, with shared scientific keywords. Delivered directly to their Slack DM.
+
+### App Home dashboard
+Your global research network at a glance: 5 researchers across 5 continents, their expertise, collaboration history, and live impact metrics — matches made, countries connected, disciplines bridged.
+
+### Proactive matching
+Pangea AI detects research topics in channel conversations and surfaces collaboration opportunities automatically — without any command needed.
+
+---
+
+## Why inside Slack
+
+Not another platform to log into. Not another directory to browse. An agent that works where scientists already are — that sees who needs whom, and makes the connection happen before the next outbreak begins.
+
+Because the next pandemic is already forming somewhere. And the researcher who can stop it may already know someone who knows someone who has exactly what they need. They just don't know it yet.
+
+---
+
+## Research network (demo)
+
+5 fictional but scientifically accurate researcher profiles anchored on the Institut Pasteur international network:
+
+| Researcher | Location | Expertise | Unique access |
+|---|---|---|---|
+| Dr. Aima Mohammad | Lisbon, Portugal 🇵🇹 | Vaccine equity, global health | WHO immunization datasets |
+| Dr. Léa Fontaine | Paris, France 🇫🇷 | Lassa fever, vaccinology | MOPEVAC platform |
+| Prof. Amadou Diallo | Bamako, Mali 🇲🇱 | Chikungunya, viral modeling | West Africa spread models |
+| Prof. Priya Sharma | Mumbai, India 🇮🇳 | Tuberculosis, seroprevalence | ICMR field samples |
+| Dr. Kenji Tanaka | Tokyo, Japan 🇯🇵 | Influenza, pandemic preparedness | Asia-Pacific genomic surveillance |
+
+---
+
+## Tech stack
 
 | Technology | Role |
 |---|---|
-| **Slack Agent Builder** | Agent scaffolding and deployment |
-| **Slack Bolt for Python** | Event handling and Socket Mode |
-| **Block Kit** | Rich interactive UI cards |
-| **Anthropic Claude** | Scientific justification generation + email drafting |
-| **MCP (roadmap)** | External researcher profile data sources |
-| **Real-Time Search (roadmap)** | Live workspace signal detection |
+| **Slack Bolt for Python** | Agent framework, Socket Mode |
+| **Slack Block Kit** | Rich interactive UI cards |
+| **Slack users.info API** | Researcher identity detection from Slack profiles |
+| **Anthropic Claude Haiku** | AI-generated scientific collaboration proposals |
+| **NetworkX + Matplotlib** | Real-time collaboration network graph generation |
+| **Python** | Bidirectional complementarity matching engine |
+
+**Roadmap:** MCP server integration (ORCID, Semantic Scholar) · Real-Time Search API for proactive weekly suggestions · Slack Marketplace submission
 
 ---
 
-## 🚀 Getting Started
+## Getting started
 
 ### Prerequisites
 - Python 3.12+
-- A Slack workspace with admin access
+- Slack workspace with admin access
 - Anthropic API key
 
 ### Installation
@@ -61,15 +99,24 @@ git clone https://github.com/MOHAMMADAima/pangea-ai.git
 cd pangea-ai
 python -m venv .venv
 .venv\Scripts\activate  # Windows
+source .venv/bin/activate  # Mac/Linux
 pip install -r requirements.txt
 ```
 
 ### Configuration
 
 Create a `.env` file:
+```
 SLACK_BOT_TOKEN=xoxb-your-token
 SLACK_APP_TOKEN=xapp-your-token
 ANTHROPIC_API_KEY=sk-ant-your-key
+```
+
+### Slack app setup
+
+Required bot scopes: `chat:write` · `channels:history` · `im:history` · `im:write` · `app_mentions:read` · `users:read` · `files:write`
+
+Enable: Socket Mode · Event Subscriptions (`message.channels` · `message.im` · `app_home_opened`) · Slash Commands (`/pangea`) · Interactivity · App Home tab
 
 ### Run
 
@@ -79,49 +126,30 @@ python app.py
 
 ### Usage
 
-In any Slack channel where Pangea AI is invited:
-/pangea oropouche virus transmission
-/pangea Lassa fever hemorrhagic
+```
+/pangea Lassa fever
 /pangea chikungunya modeling
+/pangea tuberculosis drug resistant
+/pangea influenza pandemic preparedness
+```
 
 ---
 
-## 🧬 Researcher Profiles (Demo)
+## Impact
 
-Pangea AI ships with 4 fictional but scientifically accurate researcher profiles anchored on the Institut Pasteur international network:
+Every match made. Every country connected. Every discipline bridged. Pangea AI tracks the science getting closer to saving lives.
 
-| Researcher | Location | Expertise | Access |
-|---|---|---|---|
-| Dr. Camille Verrier | Cayenne, French Guiana 🇬🇫 | Oropouche, Arbovirus | Amazonian Aedes populations |
-| Dr. Amadou Diallo | Paris, France 🇫🇷 | Chikungunya, Viral modeling | West Africa spread models |
-| Dr. Léa Fontaine | Paris, France 🇫🇷 | Lassa fever, Vaccinology | MOPEVAC platform |
-| Karim Belhadj | Dakar, Senegal 🇸🇳 | Hemorrhagic fevers, Seroprevalence | Rural Senegal field data |
+> *"I am utterly convinced that Science and Peace will triumph over Ignorance and War, that nations will eventually unite not to destroy but to edify."*
+> — Louis Pasteur
 
 ---
 
-## 🗺️ Roadmap
+## Built for
 
-- [ ] MCP server integration for live researcher profiles (ORCID, Semantic Scholar)
-- [ ] Real-Time Search API for proactive weekly match suggestions
-- [ ] Slack Marketplace submission
-- [ ] Multi-workspace support for research networks
+**Slack Agent Builder Challenge 2026** · Track: Slack Agent for Good
 
----
-
-## 🏆 Impact
-
-> *"A vaccine designed without diverse geographic and biological data risks being less effective for the populations who need it most."*
-
-Pangea AI addresses a documented gap: a decade of disparities in vaccine clinical trials, where communities bearing the highest disease burden are consistently underrepresented in research design.
-
-By connecting field researchers with vaccinology labs — inside Slack, where scientific collaboration already happens — Pangea AI helps ensure that the next generation of vaccines is built on data as diverse as the world it aims to protect.
+*Built solo in 48 hours.*
 
 ---
 
-## 👩‍💻 Author
-
-Built solo in 48 hours for the Slack Agent Builder Challenge 2026.
-
----
-
-*🧬 Pangea AI — From discovery to connection in one click.*
+*Pangea AI — from discovery to connection in one click.*
